@@ -1,0 +1,109 @@
+/wifi part:*******************************************
+#include <WiFi.h>
+#include <IOXhop_FirebaseESP32.h>
+#include <WiFiMulti.h>
+WiFiMulti wifiMulti;
+// Set these to run example.
+#define FIREBASE_HOST "project url"
+#define FIREBASE_AUTH "project auth"
+#define WIFI_SSID "ssid"
+#define WIFI_PASSWORD "pass"
+//thermistor code:**************************************************************************
+int ThermistorPin = 33;
+float Vo;
+float R1 = 10000;
+float logR2, R2, T, Tc, Tf;
+float c1 = 1.009249522e-03, c2 = 2.378405444e-04, c3 = 2.019202697e-07;
+//oled part:*****************************************************************************************************
+#include <SPI.h>
+#include <SSD_13XX.h> //https://github.com/sumotoy/SSD_13XX
+#define __CS    5  
+#define __DC    15
+#define __RST   2
+//define __mosi 23
+//define __sclk 18
+SSD_13XX tft = SSD_13XX(__CS, __DC, __RST);
+//heart beat code:********************************************************************************8
+int sensorPin=34;
+double alpha=0.75;
+int period=20;
+double change=0.0;
+void setup() {
+//thermistor part:********************
+pinMode(33,INPUT);
+//oled part:***********************************
+tft.begin();
+//heart beat code:
+  
+//wifi part:***********************************
+  Serial.begin(9600);
+  wifiMulti.addAP(WIFI_SSID, WIFI_PASSWORD );
+  wifiMulti.addAP("Artronix", "hello_world");
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+}
+void loop() {
+  while(wifiMulti.run() != WL_CONNECTED) {
+        Serial.println("WiFi not connected!");
+        delay(1000);
+    }
+    
+      Serial.println("WiFi connected!");
+       Serial.println();
+//thermestor code:*****************************************************************************************************************
+ 
+  Vo = analogRead(ThermistorPin);
+  R2 = R1 * (4096 / (float)Vo - 1.0);
+  logR2 = log(R2);
+  T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2));
+  Tc = T - 273.15;
+  Tf = (Tc * 9.0)/ 5.0 + 32.0; 
+/*
+  Serial.print("Temperature: "); 
+  Serial.print(Vo);
+  Serial.print(" F ");
+  Serial.print(Tc+5);
+  Serial.println(" C");   
+*/
+//heart rate code:**************************************************************************************************************************
+static double oldValue=0;
+static double oldChange=0;
+int rawValue=analogRead(sensorPin);
+double value=alpha*oldValue+(1-alpha)*rawValue;
+change=value-oldValue;
+oldValue=value;
+oldChange=change;
+delay(period);
+//wifi part:**************************************************************************************************************************************
+if(wifiMulti.run() != WL_CONNECTED) {
+        Serial.println("WiFi not connected!");
+        //delay(1000);
+    }
+    else
+    {
+      Serial.println("WiFi connected!");
+    }
+//oled code:************************************************************************************************************************
+tft.clearScreen();
+  tft.setCursor(0, 0);
+  tft.println("HEART BEAT TEAM");
+  tft.setCursor(0, 9);
+   tft.println("*Temp:");
+     tft.setTextColor(YELLOW);
+  tft.setTextColor(RED);
+     tft.setCursor(0, 20);
+        tft.println((Tc/3));
+        Serial.println((Tc/3));
+  
+ tft.setCursor(0, 30);
+        tft.println("*HEART RATE:");
+        Serial.println(value/60);
+         tft.println(value/60);
+  delay(500);
+    Firebase.setInt("Temp", 37);
+    Firebase.setInt("Heart_rate", value/60);
+    Firebase.setInt("blood_pressure", 120);
+      delay(200);
+    
+   
+   
+}
